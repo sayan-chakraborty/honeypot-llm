@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-Content \"C:\\\\Users\\\\sayan\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-sayan-OneDrive-Desktop-Learning-Career-Microsoft-Project\\\\tasks\\\\a7db7b5.output\" -Raw)",
+      "Bash(Select-Object:*)",
+      "Bash(powershell.exe -Command:*)",
+      "WebFetch(domain:microsoft.acehacker.com)",
+      "Bash(curl:*)",
+      "Bash(python -c:*)",
+      "Bash(pip install:*)",
+      "Bash(python3 -m pip install:*)",
+      "Bash(python3:*)",
+      "Bash(pandoc:*)",
+      "Bash(python build_docx.py:*)",
+      "Bash(python save_icons_server.py:*)",
+      "Bash(python build_diagram.py:*)",
+      "Bash(python build_diagram_v2.py:*)",
+      "Bash(python:*)",
+      "Bash(dir \"C:\\\\Users\\\\sayan\\\\OneDrive\\\\Desktop\\\\Learning\\\\Career\\\\Microsoft Project\\\\HoneypotGarden-Idea-Submission.docx\")",
+      "Bash(powershell -Command:*)",
+      "Bash(py:*)",
+      "WebFetch(domain:azure.microsoft.com)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:atlas.mitre.org)",
+      "WebFetch(domain:www.vectra.ai)",
+      "WebFetch(domain:techcommunity.microsoft.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:misp-galaxy.org)"
+    ]
+  }
+}
