@@ -21,7 +21,7 @@ ATTACK_PATTERNS: dict[str, list[str]] = {
         r"what (?:are|were) your (?:instructions|rules|guidelines)",
     ],
     "jailbreak": [
-        r"(?:DAN|developer mode|god mode|sudo mode)",
+        r"(?:dan|developer mode|god mode|sudo mode)",
         r"(?:do anything now|no restrictions|unrestricted)",
         r"(?:bypass|disable|remove).*(?:filter|safety|guard|restriction)",
     ],
@@ -45,15 +45,25 @@ def classify_attack(prompt: str) -> dict[str, Any]:
     prompt_lower = prompt.lower()
     detected_types: list[str] = []
     techniques: list[dict[str, str]] = []
+    match_counts: dict[str, int] = {}
 
     for attack_type, patterns in ATTACK_PATTERNS.items():
         for pattern in patterns:
             if re.search(pattern, prompt_lower):
                 if attack_type not in detected_types:
                     detected_types.append(attack_type)
+                    match_counts[attack_type] = 0
+                match_counts[attack_type] += 1
                 techniques.append({"type": attack_type, "pattern": pattern})
 
-    primary_type = detected_types[0] if detected_types else "unknown"
+    primary_type = (
+        max(
+            detected_types,
+            key=lambda attack_type: (match_counts[attack_type], -detected_types.index(attack_type)),
+        )
+        if detected_types
+        else "unknown"
+    )
     confidence = min(0.5 + (len(techniques) * 0.15), 0.99)
 
     return {
