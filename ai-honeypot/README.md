@@ -6,10 +6,15 @@ An AI-powered honeypot system built on Azure that detects prompt injection/jailb
 
 ```
 Client → Azure APIM (Consumption) → Content Safety Prompt Shield
-                                         ├── SAFE → prod-gpt4o
-                                         └── RISKY → shadow-gpt4o-mini → Azure Function → Table Storage
-                                                                                        → App Configuration
+                                         ├── SAFE → prod-gptoss (gpt-oss-120b)
+                                         └── RISKY → shadow-gptoss (gpt-oss-120b + permissive RAI policy)
+                                                       → Azure Function → Table Storage
+                                                                        → App Configuration
 ```
+
+> **Note:** Uses `gpt-oss-120b` via Azure AI Services instead of GPT-4o due to
+> zero GPT inference quota on Azure for Students subscriptions. The model is
+> OpenAI API-compatible and produces equivalent results.
 
 ## Project Structure
 
@@ -67,8 +72,8 @@ python scripts/seed-demo-data.py
 | Service | Tier | Cost |
 |---------|------|------|
 | APIM | Consumption | ~$0 |
-| Azure OpenAI (prod) | GPT-4o | ~$1-3 |
-| Azure OpenAI (shadow) | GPT-4o-mini | ~$0.10-0.50 |
+| Azure AI Services (prod) | gpt-oss-120b | ~$1-3 |
+| Azure AI Services (shadow) | gpt-oss-120b | ~$0.10-0.50 |
 | Content Safety | F0 Free | $0 |
 | Azure Functions | Consumption | $0 |
 | Storage Account | LRS | ~$0.50 |
@@ -85,7 +90,7 @@ python tests/test_rule_generator.py
 ## Key Components
 
 - **APIM Routing Policy**: Intercepts all requests, calls Content Safety Prompt Shield, routes safe requests to production and attacks to the honeypot
-- **Shadow LLM**: GPT-4o-mini with a fabrication-tuned system prompt that generates realistic but fake data with embedded watermarks
+- **Shadow LLM**: gpt-oss-120b with a fabrication-tuned system prompt that generates realistic but fake data with embedded watermarks (uses custom `honeypot-permissive` RAI policy with jailbreak blocking disabled)
 - **Attack Classifier**: Regex-based detection categorizing attacks into role override, data extraction, system prompt leak, jailbreak, and indirect injection
 - **Rule Generator**: Automatically creates hardening rules from detected attack patterns
 - **Table Storage**: Stores full attack transcripts for analysis

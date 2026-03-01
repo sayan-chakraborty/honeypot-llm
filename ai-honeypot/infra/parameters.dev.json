@@ -9,7 +9,7 @@
       "value": "uaenorth"
     },
     "deployOpenAIModels": {
-      "value": false
+      "value": true
     },
     "tags": {
       "value": {

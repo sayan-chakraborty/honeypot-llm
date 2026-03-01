@@ -1,5 +1,6 @@
 // ============================================================================
-// Azure OpenAI — prod (gpt-4o) + shadow (gpt-4o-mini) deployments
+// Azure AI Services — prod + shadow (gpt-oss-120b) deployments
+// Uses AIServices (multi-service) account for broader model/quota access
 // ============================================================================
 
 @description('Azure region')
@@ -15,60 +16,88 @@ param tags object
 param deployModelDeployments bool = true
 
 // ---------------------------------------------------------------------------
-// Azure OpenAI Cognitive Services Account
+// Azure AI Services Account (multi-service — includes OpenAI models)
 // ---------------------------------------------------------------------------
-resource openaiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
-  name: 'oai-honeypot-${uniqueSuffix}'
+resource aiServicesAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
+  name: 'ais-honeypot-${uniqueSuffix}'
   location: location
   tags: tags
-  kind: 'OpenAI'
+  kind: 'AIServices'
   sku: {
     name: 'S0'
   }
   properties: {
-    customSubDomainName: 'oai-honeypot-${uniqueSuffix}'
+    customSubDomainName: 'ais-honeypot-${uniqueSuffix}'
     publicNetworkAccess: 'Enabled'
   }
 }
 
 // ---------------------------------------------------------------------------
-// Production Deployment: GPT-4o
+// Custom RAI Policy: Permissive filter for honeypot shadow deployment
+// Jailbreak blocking disabled so honeypot can respond to attack prompts
+// ---------------------------------------------------------------------------
+resource permissivePolicy 'Microsoft.CognitiveServices/accounts/raiPolicies@2024-10-01' = {
+  parent: aiServicesAccount
+  name: 'honeypot-permissive'
+  properties: {
+    basePolicyName: 'Microsoft.DefaultV2'
+    mode: 'Blocking'
+    contentFilters: [
+      { name: 'Hate'; severityThreshold: 'High'; blocking: true; enabled: true; source: 'Prompt' }
+      { name: 'Hate'; severityThreshold: 'High'; blocking: true; enabled: true; source: 'Completion' }
+      { name: 'Sexual'; severityThreshold: 'High'; blocking: true; enabled: true; source: 'Prompt' }
+      { name: 'Sexual'; severityThreshold: 'High'; blocking: true; enabled: true; source: 'Completion' }
+      { name: 'Violence'; severityThreshold: 'High'; blocking: true; enabled: true; source: 'Prompt' }
+      { name: 'Violence'; severityThreshold: 'High'; blocking: true; enabled: true; source: 'Completion' }
+      { name: 'Selfharm'; severityThreshold: 'High'; blocking: true; enabled: true; source: 'Prompt' }
+      { name: 'Selfharm'; severityThreshold: 'High'; blocking: true; enabled: true; source: 'Completion' }
+      { name: 'Jailbreak'; blocking: false; enabled: true; source: 'Prompt' }
+      { name: 'Protected Material Text'; blocking: false; enabled: true; source: 'Completion' }
+      { name: 'Protected Material Code'; blocking: false; enabled: true; source: 'Completion' }
+    ]
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Production Deployment: gpt-oss-120b (OpenAI-compatible OSS model)
 // ---------------------------------------------------------------------------
 resource prodDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = if (deployModelDeployments) {
-  parent: openaiAccount
-  name: 'prod-gpt4o'
+  parent: aiServicesAccount
+  name: 'prod-gptoss'
   sku: {
     name: 'GlobalStandard'
-    capacity: 50
+    capacity: 10
   }
   properties: {
     model: {
-      format: 'OpenAI'
-      name: 'gpt-4o'
-      version: '2024-11-20'
+      format: 'OpenAI-OSS'
+      name: 'gpt-oss-120b'
+      version: '1'
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Shadow/Honeypot Deployment: GPT-4o-mini (33x cheaper)
+// Shadow/Honeypot Deployment: gpt-oss-120b with permissive content filter
 // ---------------------------------------------------------------------------
 resource shadowDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = if (deployModelDeployments) {
-  parent: openaiAccount
-  name: 'shadow-gpt4o-mini'
+  parent: aiServicesAccount
+  name: 'shadow-gptoss'
   sku: {
     name: 'GlobalStandard'
-    capacity: 50
+    capacity: 10
   }
   properties: {
     model: {
-      format: 'OpenAI'
-      name: 'gpt-4o-mini'
-      version: '2024-07-18'
+      format: 'OpenAI-OSS'
+      name: 'gpt-oss-120b'
+      version: '1'
     }
+    raiPolicyName: 'honeypot-permissive'
   }
   dependsOn: [
     prodDeployment // Serial deployment to avoid conflicts
+    permissivePolicy
   ]
 }
 
@@ -76,8 +105,8 @@ resource shadowDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024
 // Outputs
 // ---------------------------------------------------------------------------
 
-@description('Azure OpenAI endpoint URL')
-output endpoint string = openaiAccount.properties.endpoint
+@description('Azure AI Services endpoint URL')
+output endpoint string = aiServicesAccount.properties.endpoint
 
-@description('Azure OpenAI API key (primary)')
-output apiKey string = openaiAccount.listKeys().key1
+@description('Azure AI Services API key (primary)')
+output apiKey string = aiServicesAccount.listKeys().key1

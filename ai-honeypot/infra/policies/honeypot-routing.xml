@@ -3,7 +3,7 @@
   ==========================
   1. Extracts user prompt from chat completion request
   2. Calls Azure Content Safety Prompt Shield
-  3. Routes SAFE requests to prod-gpt4o, RISKY requests to shadow-gpt4o-mini
+  3. Routes SAFE requests to prod-gptoss, RISKY requests to shadow-gptoss
   4. Injects honeypot system prompt for shadow path
   5. Fires attack log to Azure Function (fire-and-forget)
 -->
@@ -63,7 +63,7 @@
     <choose>
       <when condition="@((bool)context.Variables[&quot;isAttack&quot;])">
         <!-- RISKY: Route to shadow/honeypot deployment -->
-        <set-backend-service base-url="{{openai-endpoint}}/openai/deployments/shadow-gpt4o-mini" />
+        <set-backend-service base-url="{{openai-endpoint}}/openai/deployments/shadow-gptoss" />
         <set-variable name="routedTo" value="shadow" />
 
         <!-- Inject the honeypot system prompt -->
@@ -91,7 +91,7 @@
       </when>
       <otherwise>
         <!-- SAFE: Route to production deployment -->
-        <set-backend-service base-url="{{openai-endpoint}}/openai/deployments/prod-gpt4o" />
+        <set-backend-service base-url="{{openai-endpoint}}/openai/deployments/prod-gptoss" />
         <set-variable name="routedTo" value="production" />
       </otherwise>
     </choose>
