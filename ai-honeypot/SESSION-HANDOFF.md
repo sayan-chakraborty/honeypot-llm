@@ -331,3 +331,210 @@ All names use `uniqueSuffix = "hpot01"` from `parameters.dev.json`:
 | App Insights | appi-honeypot-hpot01 | Web type |
 | Log Analytics | log-honeypot-hpot01 | 30-day retention |
 | App Service Plan | plan-honeypot-hpot01 | Y1 Dynamic (Consumption) |
+
+---
+
+## 7. LATEST SESSION UPDATE (March 1, 2026 — Supersedes Sections 2.4 and 3)
+
+This section is the current source of truth for where work actually ended.
+
+### 7.1 Step Completion Matrix
+
+| Original Step | Status | What happened |
+|---|---|---|
+| Step 1: Initialize Git | ✅ Completed | Repo already initialized and on branch `sayan-feature-branch`. |
+| Step 2: Create `deploy.ps1` | ✅ Completed | `scripts/deploy.ps1` already existed and is usable. |
+| Step 3: Create `local.settings.json` | ✅ Completed | `functions/local.settings.json` already existed with expected keys. |
+| Step 4: Azure login | ✅ Completed | Login completed using Azure CLI device-code flow (browser opened at device login URL). Active subscription: Azure for Students (`71641d8d-ad36-4747-ab88-3e73827018be`). |
+| Step 5: Register providers | ✅ Completed | Required providers are registered, including Microsoft.CognitiveServices (initially was Registering). |
+| Step 6: Check model availability | ✅ Completed | Model discovery ran for `eastus2`, then across policy-allowed regions. Required model names were visible in multiple regions. |
+| Step 7: Bicep build | ✅ Completed with warnings | `az bicep build` succeeds; warnings indicate secrets are exposed in module outputs via `listKeys`. |
+| Step 8: Deploy infra | ⚠️ Blocked (partially executed) | Multiple deployment attempts failed due subscription region policy and OpenAI deployment SKU/model compatibility/quota constraints. |
+| Step 9: Retrieve outputs | ⏸️ Not done | No successful full deployment yet, so final outputs were not retrieved. |
+| Step 10: Python venv setup | ⏸️ Not done | Deferred until infra deployment is stable. |
+| Step 11: Unit tests | ⏸️ Not done | Deferred. |
+| Step 12: Publish function app | ⏸️ Not done | Deferred until infra exists successfully. |
+| Step 13: APIM subscription key | ⏸️ Not done | Deferred until APIM deployment succeeds. |
+| Step 14: Seed demo data | ⏸️ Not done | Deferred until storage and function path are ready. |
+| Step 15: End-to-end demo test | ⏸️ Not done | Deferred until Steps 8–14 are complete. |
+
+### 7.2 Exact Issues Encountered During Implementation
+
+1. **Azure CLI command not found in terminal (`az` not recognized)**
+  - **Symptoms:** direct `az` calls failed in some PowerShell sessions.
+  - **Cause:** PATH/session mismatch in terminal context.
+  - **Mitigation used:** direct invocation via absolute path:
+    - `C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd`
+  - **Current state:** workable via absolute path; PATH behavior is still inconsistent across new shells.
+
+2. **Interactive terminal contamination from PowerShell module install prompts**
+  - **Symptoms:** NuGet/PowerShellGet prompts appeared unexpectedly and interfered with unrelated commands.
+  - **Cause:** prior attempted `Install-Module` workflow left interactive prompt state.
+  - **Mitigation used:** avoid Az PowerShell module path; rely on Azure CLI direct path and fresh shell invocations.
+  - **Current state:** stable enough when using explicit `az.cmd` path.
+
+3. **Foreground Azure login repeatedly interrupted (`Terminate batch job (Y/N)?`)**
+  - **Symptoms:** standard foreground login attempts exited before completion.
+  - **Cause:** batch-wrapper behavior when running `az.cmd` in certain shared PowerShell sessions.
+  - **Mitigation used:** run device-code auth and complete sign-in through browser device page.
+  - **Current state:** resolved; account authenticated.
+
+4. **Subscription-level region restriction policy blocked deployment**
+  - **Symptoms:** `RequestDisallowedByAzure` for multiple resources.
+  - **Cause:** policy assignment `sys.regionrestriction` limited deployable regions.
+  - **Allowed regions from policy:** `malaysiawest`, `uaenorth`, `austriaeast`, `koreacentral`, `southeastasia`.
+  - **Current state:** understood and accommodated in parameters.
+
+5. **OpenAI deployment validation failures by region/SKU/model combo**
+  - **Symptoms:** `InvalidResourceProperties` for GPT-4o deployment in deployment validation.
+  - **Cause:** region-specific support differences for model version + deployment SKU, and potential quota pressure.
+  - **Mitigation iterations attempted:**
+    - switched location from `eastus2` to allowed regions,
+    - switched OpenAI deployment SKU from `Standard` to `GlobalStandard`,
+    - adjusted model versions during retries.
+  - **Current state:** still the primary blocker for successful Step 8.
+
+6. **Bicep lint warnings: outputs containing secrets**
+  - **Symptoms:** warning `outputs-should-not-contain-secrets` in multiple modules.
+  - **Cause:** outputs using `listKeys()` values.
+  - **Files implicated:** `infra/modules/content-safety.bicep`, `infra/modules/function-app.bicep`, `infra/modules/app-config.bicep`, `infra/modules/openai.bicep`.
+  - **Current state:** non-blocking for deployment but should be cleaned for security best practices.
+
+### 7.3 Files Changed During This Session
+
+1. `infra/parameters.dev.json`
+  - `location` was updated to `uaenorth` to satisfy subscription policy constraints.
+
+2. `infra/modules/openai.bicep`
+  - OpenAI deployment SKU moved to `GlobalStandard` for both deployments.
+  - Current prod model is set to `gpt-4o` version `2024-11-20`.
+  - Shadow model remains `gpt-4o-mini` version `2024-07-18`.
+
+### 7.4 Required Next Actions (Next Session)
+
+#### Priority A — Unblock Infra Deployment (must do first)
+
+1. Confirm OpenAI deployable SKU/model/quota in `uaenorth` for this subscription:
+
+```powershell
+$az = "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd"
+& $az cognitiveservices model list --location uaenorth --query "[?model.name=='gpt-4o' || model.name=='gpt-4o-mini'].{name:model.name,version:model.version,skus:model.skus[].name,max:model.maxCapacity}" -o json
+& $az cognitiveservices usage list --location uaenorth -o table
+```
+
+2. If `gpt-4o` is blocked by quota/SKU, temporarily switch prod model to a deployable alternative (for MVP continuity), then redeploy.
+
+3. Retry deployment:
+
+```powershell
+cd "c:\Users\sayan\OneDrive\Desktop\Learning\Microsoft Project\ai-honeypot"
+& "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd" deployment group create `
+  --resource-group rg-ai-honeypot `
+  --name ai-honeypot-main `
+  --template-file infra/main.bicep `
+  --parameters "@infra/parameters.dev.json" `
+  --verbose
+```
+
+4. Once successful, immediately capture outputs:
+
+```powershell
+& "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd" deployment group show `
+  --resource-group rg-ai-honeypot `
+  --name ai-honeypot-main `
+  --query properties.outputs -o json
+```
+
+#### Priority B — Continue Remaining Pipeline
+
+5. Create/activate Python 3.11 venv in `functions`, install dependencies.
+6. Run unit tests: `tests/test_attack_classifier.py`, `tests/test_rule_generator.py`.
+7. Publish function app after infra is confirmed.
+8. Create APIM subscription key.
+9. Seed demo data and run end-to-end demo calls.
+
+#### Priority C — Security/Quality Cleanup (after MVP path works)
+
+10. Remove secret-bearing outputs (`listKeys`) from Bicep outputs and pass secrets via secure references only.
+11. Normalize all scripts/README examples to one confirmed deployable region for this subscription.
+
+### 7.5 Quick Resume Command Block
+
+Run these first in next session:
+
+```powershell
+cd "c:\Users\sayan\OneDrive\Desktop\Learning\Microsoft Project\ai-honeypot"
+$az = "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd"
+& $az account show -o table
+& $az provider show --namespace Microsoft.CognitiveServices --query registrationState -o tsv
+& $az cognitiveservices usage list --location uaenorth -o table
+```
+
+---
+
+## 8. CONTINUATION UPDATE (March 1, 2026 — Current State)
+
+This section supersedes pending items from Section 7.4 Priority A/B where noted.
+
+### 8.1 What Was Completed
+
+1. **Infrastructure deployment succeeded** (`ai-honeypot-main`) in `rg-ai-honeypot` with `location=uaenorth`.
+2. **Bicep updates made to unblock quota limits**:
+  - Added `deployOpenAIModels` parameter in `infra/main.bicep`.
+  - Added `deployModelDeployments` parameter in `infra/modules/openai.bicep`.
+  - Set `deployOpenAIModels=false` in `infra/parameters.dev.json`.
+  - Result: OpenAI account is created, but model deployments are intentionally skipped.
+3. **APIM policy fixed and deployed**:
+  - Escaped XML attribute generic type markers (`&lt;JObject&gt;`).
+  - Replaced expression-based named-value interpolation with direct `{{named-value}}` URL usage.
+4. **Python local setup completed**:
+  - Created `functions/.venv` with Python 3.11.
+  - Installed `functions/requirements.txt`.
+5. **Unit tests completed and passing**:
+  - `tests/test_attack_classifier.py` ✅
+  - `tests/test_rule_generator.py` ✅
+6. **Function app code published successfully**:
+  - `func azure functionapp publish func-honeypot-hpot01 --python` completed with remote build.
+  - Functions available:
+    - `/api/health`
+    - `/api/logattack`
+7. **APIM subscription key created** via ARM REST (`honeypot-demo-sub`).
+8. **Demo data seeded**:
+  - `scripts/seed-demo-data.py` inserted 6 records into `AttackLogs`.
+
+### 8.2 Deployment Outputs (Captured)
+
+- `apimGatewayUrl`: `https://apim-honeypot-hpot01.azure-api.net`
+- `functionAppName`: `func-honeypot-hpot01`
+- `storageAccountName`: `sthoneypothpot01`
+- `openaiEndpoint`: `https://oai-honeypot-hpot01.openai.azure.com/`
+- `appConfigEndpoint`: `https://appcs-honeypot-hpot01.azconfig.io`
+
+### 8.3 Current Functional Limitation
+
+End-to-end calls currently return:
+
+- `404 DeploymentNotFound` from Azure OpenAI for both safe and attack paths.
+
+Reason: `prod-gpt4o` and `shadow-gpt4o-mini` deployments do not exist yet because `deployOpenAIModels=false` was used to bypass current subscription quota constraints.
+
+### 8.4 Next Required Action (to complete demo behavior)
+
+When quota becomes available, turn model deployments back on and redeploy:
+
+1. Set in `infra/parameters.dev.json`:
+  - `deployOpenAIModels` → `true`
+2. Redeploy:
+
+```powershell
+cd "c:\Users\sayan\OneDrive\Desktop\Learning\Microsoft Project\ai-honeypot"
+$az = "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd"
+& $az deployment group create `
+  --resource-group rg-ai-honeypot `
+  --name ai-honeypot-main `
+  --template-file infra/main.bicep `
+  --parameters "@infra/parameters.dev.json" `
+  --verbose
+```
+
+3. Re-run safe/attack APIM test requests.
