@@ -6,7 +6,10 @@
       "value": "hpot01"
     },
     "location": {
-      "value": "eastus2"
+      "value": "uaenorth"
+    },
+    "deployOpenAIModels": {
+      "value": false
     },
     "tags": {
       "value": {

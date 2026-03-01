@@ -11,6 +11,9 @@ param uniqueSuffix string
 @description('Resource tags')
 param tags object
 
+@description('Whether to create model deployments in this environment')
+param deployModelDeployments bool = true
+
 // ---------------------------------------------------------------------------
 // Azure OpenAI Cognitive Services Account
 // ---------------------------------------------------------------------------
@@ -31,12 +34,12 @@ resource openaiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
 // ---------------------------------------------------------------------------
 // Production Deployment: GPT-4o
 // ---------------------------------------------------------------------------
-resource prodDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+resource prodDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = if (deployModelDeployments) {
   parent: openaiAccount
   name: 'prod-gpt4o'
   sku: {
-    name: 'Standard'
-    capacity: 10 // 10K tokens per minute — minimal for MVP
+    name: 'GlobalStandard'
+    capacity: 50
   }
   properties: {
     model: {
@@ -50,12 +53,12 @@ resource prodDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-1
 // ---------------------------------------------------------------------------
 // Shadow/Honeypot Deployment: GPT-4o-mini (33x cheaper)
 // ---------------------------------------------------------------------------
-resource shadowDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = {
+resource shadowDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = if (deployModelDeployments) {
   parent: openaiAccount
   name: 'shadow-gpt4o-mini'
   sku: {
-    name: 'Standard'
-    capacity: 10
+    name: 'GlobalStandard'
+    capacity: 50
   }
   properties: {
     model: {

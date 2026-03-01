@@ -23,6 +23,9 @@ param tags object = {
   environment: 'dev'
 }
 
+@description('Whether to deploy OpenAI model deployments (set false if quota is unavailable)')
+param deployOpenAIModels bool = true
+
 // ---------------------------------------------------------------------------
 // Module: Azure OpenAI (prod + shadow deployments)
 // ---------------------------------------------------------------------------
@@ -32,6 +35,7 @@ module openai 'modules/openai.bicep' = {
     location: location
     uniqueSuffix: uniqueSuffix
     tags: tags
+    deployModelDeployments: deployOpenAIModels
   }
 }
 

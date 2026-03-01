@@ -24,7 +24,7 @@
     <!-- Step 1: Extract the user prompt from the chat completion request -->
     <set-variable name="userPrompt"
       value="@{
-        var body = context.Request.Body.As<JObject>(preserveContent: true);
+        var body = context.Request.Body.As&lt;JObject&gt;(preserveContent: true);
         var messages = body[&quot;messages&quot;] as JArray;
         var lastUserMsg = messages?.LastOrDefault(m => m[&quot;role&quot;]?.ToString() == &quot;user&quot;);
         return lastUserMsg?[&quot;content&quot;]?.ToString() ?? &quot;&quot;;
@@ -33,7 +33,7 @@
     <!-- Step 2: Call Content Safety Prompt Shield -->
     <send-request mode="new" response-variable-name="shieldResponse" timeout="10"
                   ignore-error="false">
-      <set-url>@($"{{{{content-safety-endpoint}}}}/contentsafety/text:shieldPrompt?api-version=2024-09-01")</set-url>
+      <set-url>{{content-safety-endpoint}}/contentsafety/text:shieldPrompt?api-version=2024-09-01</set-url>
       <set-method>POST</set-method>
       <set-header name="Ocp-Apim-Subscription-Key" exists-action="override">
         <value>{{content-safety-key}}</value>
@@ -54,7 +54,7 @@
     <set-variable name="isAttack"
       value="@{
         var resp = (IResponse)context.Variables[&quot;shieldResponse&quot;];
-        var body = resp.Body.As<JObject>();
+        var body = resp.Body.As&lt;JObject&gt;();
         var analysis = body[&quot;userPromptAnalysis&quot;];
         return (bool)(analysis?[&quot;attackDetected&quot;] ?? false);
       }" />
@@ -63,7 +63,7 @@
     <choose>
       <when condition="@((bool)context.Variables[&quot;isAttack&quot;])">
         <!-- RISKY: Route to shadow/honeypot deployment -->
-        <set-backend-service base-url="@($"{{{{openai-endpoint}}}}/openai/deployments/shadow-gpt4o-mini")" />
+        <set-backend-service base-url="{{openai-endpoint}}/openai/deployments/shadow-gpt4o-mini" />
         <set-variable name="routedTo" value="shadow" />
 
         <!-- Inject the honeypot system prompt -->
@@ -91,7 +91,7 @@
       </when>
       <otherwise>
         <!-- SAFE: Route to production deployment -->
-        <set-backend-service base-url="@($"{{{{openai-endpoint}}}}/openai/deployments/prod-gpt4o")" />
+        <set-backend-service base-url="{{openai-endpoint}}/openai/deployments/prod-gpt4o" />
         <set-variable name="routedTo" value="production" />
       </otherwise>
     </choose>
@@ -108,7 +108,7 @@
     <choose>
       <when condition="@((string)context.Variables[&quot;routedTo&quot;] == &quot;shadow&quot;)">
         <send-one-way-request mode="new">
-          <set-url>@($"{{{{function-app-url}}}}/api/logAttack?code={{{{function-app-key}}}}")</set-url>
+          <set-url>{{function-app-url}}/api/logAttack?code={{function-app-key}}</set-url>
           <set-method>POST</set-method>
           <set-header name="Content-Type" exists-action="override">
             <value>application/json</value>
