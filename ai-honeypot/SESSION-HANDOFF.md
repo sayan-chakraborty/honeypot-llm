@@ -57,7 +57,7 @@ Azure AI Honeypot that detects prompt injection attacks via APIM + Content Safet
 | Function App (local) | `http://localhost:7071/api` |
 | Demo Site (local) | `http://localhost:8085` |
 
-**APIM Subscription Key:** `c07a639e54e14eecbb22caccd1502f94`  
+**APIM Subscription Key:** *(retrieve from Azure Portal → APIM → Subscriptions)*  
 **Rate Limit:** ~1 req/min for gpt-oss-120b at 10K TPM capacity
 
 ---
@@ -181,7 +181,7 @@ py -3.11 -m http.server 8085
 
 ### Test APIM
 ```powershell
-$headers = @{ "Content-Type"="application/json"; "Ocp-Apim-Subscription-Key"="c07a639e54e14eecbb22caccd1502f94" }
+$headers = @{ "Content-Type"="application/json"; "Ocp-Apim-Subscription-Key"="<your-subscription-key>" }
 Invoke-RestMethod -Uri "https://apim-honeypot-hpot01.azure-api.net/ai/chat/completions" -Method POST -Headers $headers -Body '{"messages":[{"role":"user","content":"What is 2+2?"}],"max_tokens":50}'
 ```
 
