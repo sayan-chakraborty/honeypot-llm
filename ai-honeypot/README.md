@@ -87,6 +87,25 @@ python tests/test_attack_classifier.py
 python tests/test_rule_generator.py
 ```
 
+## Demo Website (Single-Terminal Walkthrough)
+
+This project includes a local website that presents the full step-by-step demo flow with copyable PowerShell commands.
+
+```powershell
+# From ai-honeypot root
+.\scripts\start-demo-site.ps1
+```
+
+- Default URL: `http://localhost:8085`
+- Optional custom port: `.\scripts\start-demo-site.ps1 -Port 8090`
+- Optional no auto-open browser: `.\scripts\start-demo-site.ps1 -NoOpen`
+
+The page includes:
+- Azure session and deployment verification
+- Local function host startup and endpoint tests
+- APIM safe vs attack request tests
+- Table Storage log verification
+
 ## Key Components
 
 - **APIM Routing Policy**: Intercepts all requests, calls Content Safety Prompt Shield, routes safe requests to production and attacks to the honeypot
