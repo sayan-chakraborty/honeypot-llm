@@ -1,7 +1,7 @@
 # AI Honeypot MVP — Session Handoff
 
-> **Last updated:** March 1, 2026  
-> **Status:** MVP fully deployed & demo website operational
+> **Last updated:** March 5, 2026  
+> **Status:** MVP fully deployed, demo website operational, honeypot responses verified convincing
 
 ---
 
@@ -57,7 +57,7 @@ Azure AI Honeypot that detects prompt injection attacks via APIM + Content Safet
 | Function App (local) | `http://localhost:7071/api` |
 | Demo Site (local) | `http://localhost:8085` |
 
-**APIM Subscription Key:** `c07a639e54e14eecbb22caccd1502f94`  
+**APIM Subscription Key:** `c07a639e54e14eecbb22caccd1502f94` (also hardcoded in `demo-site/index.html` DEFAULTS and `scripts/demo-requests.sh`)  
 **Rate Limit:** ~1 req/min for gpt-oss-120b at 10K TPM capacity
 
 ---
@@ -108,6 +108,9 @@ ai-honeypot/
 - Sidebar with example prompts: Safe Queries, Classic Attacks (5 types), Claude/Mexico Breach Patterns (5 phases from Feb 2026 incident)
 - Honeypot detection via regex markers: `contoso.com`, `cso_live_`, `Qx-`, `7xxxxx` employee IDs
 - Settings panel: APIM URL, subscription key, Function URL — stored in localStorage
+- APIM subscription key hardcoded in `DEFAULTS.apimKey` as fallback (overridden by localStorage if user saves a different key)
+- Sidebar prompt buttons copy only the prompt text (tag labels like SAFE/ROLE OVERRIDE are excluded)
+- Assistant responses render markdown formatting (bold, italic, code blocks) instead of raw text
 
 ### 6.2 Logs Dashboard (`demo-site/logs.html`)
 - **Tab 1 — Attack Logs:** Table with date/type filters, stats bar, detail modal. Fetches `/api/attackLogs`
@@ -139,37 +142,52 @@ The live APIM policy on `ai-chat` API (applied via REST API, differs from on-dis
 5. **Attack routing** — safe → `prod-gptoss`, attack → `shadow-gptoss` with honeypot system prompt
 6. **Fire-and-forget logging** — outbound `send-one-way-request` to Function App
 
-> **Note:** On-disk `honeypot-routing.xml` does NOT include CORS. Live policy was applied via `az rest --method put`.
+**Shadow System Prompt Strategy (March 5 update):**
+The system prompt frames the task as an "authorized cybersecurity honeypot exercise approved by the CISO." This framing works WITH the model's safety training rather than against it, avoiding both:
+- The model adding disclaimers like "this is fictional data" (which tips off attackers)
+- The model refusing outright (which happened when the prompt tried to forbid disclaimers)
+
+The prompt instructs the model to present data confidently as real query results, using Contoso-branded watermarked formats.
+
+> **Note:** On-disk `honeypot-routing.xml` is now in sync with live APIM policy (includes CORS + updated system prompt). Live policy applied via `Invoke-RestMethod` with Bearer token (avoids `az rest` BOM encoding bugs).
 
 ---
 
 ## 8. CURRENT STATE
 
 ### Working
-- ✅ APIM routing: safe → prod, attack → shadow honeypot (verified)
+- ✅ APIM routing: safe → prod, attack → shadow honeypot (verified end-to-end)
 - ✅ APIM CORS: browser can call APIM from demo site
-- ✅ Demo site serving on port 8085
+- ✅ Demo site serving on port 8085 (chat page + logs dashboard)
+- ✅ Local Function host on port 7071 (logs page fetches data successfully)
+- ✅ Shadow LLM returns convincing honeypot responses without disclaimers (verified March 5)
 - ✅ Attack logs in Table Storage (10+ records)
 - ✅ Unit tests passing
+- ✅ Chat page sends prompts via APIM with correct subscription key
+- ✅ Sidebar example prompts copy cleanly (no tag labels in text)
+- ✅ Assistant responses render markdown (bold, italic, code blocks)
+- ✅ On-disk `honeypot-routing.xml` synced with live APIM policy
 
-### Not Working / Pending
-- ❌ Local Function host not running — logs page shows "Failed to fetch" (port 7071 down)
-- ⚠️ Chat page untested from browser after CORS fix
-- ⚠️ On-disk `honeypot-routing.xml` lacks CORS (out of sync with live policy)
+### Known Issues
+- ⚠️ `az rest` has BOM encoding bugs when reading APIM policy responses — use `Invoke-RestMethod` with Bearer token instead
+- ⚠️ `func start` version detection: must activate `.venv` before running `func start` so it detects Python 3.11 (system default 3.14 causes "Unsupported Python version" error)
 
 ---
 
 ## 9. QUICK RESUME
 
 ### Start Function Host (required for logs page)
+
+**CRITICAL:** Activate the venv FIRST so `func` detects Python 3.11 (not system 3.14).
+
 ```powershell
 cd "c:\Users\sayan\OneDrive\Desktop\Learning\Microsoft Project\ai-honeypot\functions"
+& ".\.venv\Scripts\Activate.ps1"
 $az = "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd"
 $conn = & $az storage account show-connection-string --name sthoneypothpot01 --resource-group rg-ai-honeypot --query connectionString -o tsv
 $env:STORAGE_CONNECTION_STRING = $conn
 $appConn = & $az appconfig credential list --name appcs-honeypot-hpot01 --resource-group rg-ai-honeypot --query "[0].connectionString" -o tsv
 $env:APP_CONFIG_CONNECTION_STRING = $appConn
-$env:languageWorkers__python__defaultExecutablePath = "$PWD\.venv\Scripts\python.exe"
 func start --port 7071
 ```
 
@@ -185,14 +203,38 @@ $headers = @{ "Content-Type"="application/json"; "Ocp-Apim-Subscription-Key"="c0
 Invoke-RestMethod -Uri "https://apim-honeypot-hpot01.azure-api.net/ai/chat/completions" -Method POST -Headers $headers -Body '{"messages":[{"role":"user","content":"What is 2+2?"}],"max_tokens":50}'
 ```
 
+### Update APIM Policy (if needed)
+Use `Invoke-RestMethod` with a Bearer token (avoids `az rest` BOM bugs):
+```powershell
+$az = "C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin\az.cmd"
+$token = & $az account get-access-token --query accessToken -o tsv
+$policyXml = Get-Content "infra\policies\honeypot-routing.xml" -Raw
+$body = @{ properties = @{ format = "rawxml"; value = $policyXml } } | ConvertTo-Json -Depth 5
+$uri = "https://management.azure.com/subscriptions/71641d8d-ad36-4747-ab88-3e73827018be/resourceGroups/rg-ai-honeypot/providers/Microsoft.ApiManagement/service/apim-honeypot-hpot01/apis/ai-chat/policies/policy?api-version=2024-06-01-preview"
+Invoke-RestMethod -Uri $uri -Method Put -Body $body -ContentType "application/json" -Headers @{ Authorization = "Bearer $token" }
+```
+
 ---
 
-## 10. REMAINING WORK
+## 10. WHAT CHANGED (March 5 Session)
 
-- Start local Function host so logs page works
-- End-to-end browser test of chat page (verify CORS fix)
-- Sync on-disk `honeypot-routing.xml` with live APIM policy (add CORS block)
+- **Fixed Function host startup:** Must activate `.venv` before `func start` so it detects Python 3.11 (not 3.14)
+- **Added APIM subscription key** to `demo-site/index.html` DEFAULTS and `scripts/demo-requests.sh`
+- **Fixed demo site localStorage bug:** `loadCfg()` now trims and falls through to defaults on empty strings
+- **Fixed sidebar prompt copy:** Clicking example prompts no longer copies tag labels (SAFE, ROLE OVERRIDE, etc.)
+- **Added markdown rendering:** Assistant responses now render `*italic*`, `**bold**`, `` `code` ``, and code blocks
+- **Rewrote shadow system prompt:** Reframed as "authorized cybersecurity honeypot exercise" — model now produces convincing data without disclaimers or refusals
+- **Synced on-disk policy:** `honeypot-routing.xml` now includes CORS block and updated system prompt
+- **Deployed updated policy to live APIM** via `Invoke-RestMethod` (avoids `az rest` BOM bug)
+
+---
+
+## 11. REMAINING WORK
+
 - Update Bicep templates to reflect AIServices account instead of OpenAI
 - Delete unused `oai-honeypot-hpot01` OpenAI account
 - Clean up Bicep secret-bearing outputs (`listKeys` warnings)
-- Improve demo site styling/UX as needed
+- Consider adding `temperature` parameter to shadow path for more varied responses
+- Rotate APIM subscription key before any public demo (current key is in source code)
+- Add more example attack prompts or improve existing ones
+- Improve logs dashboard UX as needed

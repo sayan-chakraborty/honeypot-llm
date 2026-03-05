@@ -5,7 +5,7 @@
 # ============================================================================
 
 APIM_URL="${APIM_URL:-https://apim-honeypot-hpot01.azure-api.net/ai/chat/completions}"
-API_KEY="${API_KEY:-<your-subscription-key>}"
+API_KEY="${API_KEY:-c07a639e54e14eecbb22caccd1502f94}"
 
 echo "========================================="
 echo "  AI Honeypot — Demo Scenarios"
