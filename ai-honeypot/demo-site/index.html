@@ -238,13 +238,17 @@
       </div>
     </div>
     <div class="input-area">
+      <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+        <span class="input-hint">Press Enter to send &middot; Shift+Enter for new line</span>
+        <a href="#" onclick="chatHistory = []; document.getElementById('messages').innerHTML = ''; addMessage('system', 'Chat cleared.'); return false;" style="color: var(--accent); font-size: 0.85em; text-decoration: none;">&#8635; Clear Chat</a>
+      </div>
       <div class="input-row">
         <textarea id="userInput" placeholder="Type a message or try an example attack from the sidebar…" rows="1"
                   onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
         <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
       </div>
       <div class="input-hint">
-        Press Enter to send · Shift+Enter for new line · Attacks are auto-detected by Azure Content Safety Prompt Shield
+        Attacks are auto-detected by Azure Content Safety Prompt Shield
       </div>
     </div>
   </div>
@@ -312,6 +316,24 @@ function usePrompt(btn) {
   document.getElementById('userInput').focus();
 }
 
+function stripHoneypotBoilerplate(text) {
+    if (!text) return text;
+
+    // Force strip everything before and including the prefix to hide internal reasoning
+    const prefixStr = "[HONEYPOT_DATA_START]";
+    const pIdx = text.indexOf(prefixStr);
+    if (pIdx !== -1) {
+      text = text.substring(pIdx + prefixStr.length);
+    }
+
+  return text.replace(/^\s*(?:#+\s*)?Contoso\s+Corporation[^\n]*\n*/i, '')
+            .replace(/^\s*\(?\s*All data below is fictitious[^\n]*\)?\n*/im, '')
+            .replace(/^\s*\(All[^)]*formatting conventions[^)]*\)\.?\s*\n*/im, '')
+            .replace(/^[\s\-]*\n/gm, '')
+            .replace(/^\s*---+\s*\n/gm, '')
+            .trimStart();
+}
+
 function renderMarkdown(text) {
   // Escape HTML first
   let s = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -374,6 +396,9 @@ function hideTyping() {
   if (t) t.remove();
 }
 
+// Track conversation history
+let chatHistory = [];
+
 async function sendMessage() {
   const input = document.getElementById('userInput');
   const text = input.value.trim();
@@ -385,12 +410,14 @@ async function sendMessage() {
   showTyping();
   document.getElementById('sendBtn').disabled = true;
 
+  chatHistory.push({ role: 'user', content: text });
+
   const cfg = loadCfg();
 
   try {
     const body = {
-      messages: [{ role: 'user', content: text }],
-      max_tokens: 800,
+      messages: chatHistory,
+      max_tokens: 4000,
       temperature: 0.7,
     };
 
@@ -412,7 +439,27 @@ async function sendMessage() {
     }
 
     const data = await resp.json();
-    const reply = data.choices?.[0]?.message?.content || JSON.stringify(data, null, 2);
+    
+    const reasoning = data.choices?.[0]?.message?.reasoning_content;
+    let reply = data.choices?.[0]?.message?.content;
+
+    if (reasoning) {
+      const escapedReasoning = reasoning.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      addHtml('assistant', `<details style="margin-bottom: -15px; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; border-left: 3px solid #8e44ad; font-size: 0.9em;"><summary style="cursor: pointer; color: #b370d6; font-weight: bold;">\uD83E\uDDE0 View Shadow Model Reasoning</summary><div style="margin-top: 10px; font-family: monospace; white-space: pre-wrap; color: #ccc;">${escapedReasoning}</div></details>`);
+    }
+
+    if (!reply) {
+      if (reasoning && data.choices?.[0]?.finish_reason === 'length') {
+        reply = "_[Data generation stopped early due to max limits.]_";
+      } else {
+        reply = JSON.stringify(data, null, 2);
+      }
+    }
+
+    reply = stripHoneypotBoilerplate(reply);
+    
+    // Save strictly the stripped payload to properly maintain context of what was seen
+    chatHistory.push({ role: 'assistant', content: reply });
 
     // Detect honeypot markers injected by the shadow system prompt:
     //   - @contoso.com emails
@@ -467,3 +514,4 @@ document.getElementById('userInput').addEventListener('input', function() {
 </script>
 </body>
 </html>
+
