@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-This document provides a concrete, opinionated architecture for building an "AI Honeypot" MVP on Azure with ~$100 in credits. The system detects prompt injection/jailbreak attacks at the API gateway level, silently reroutes malicious requests to a shadow LLM that returns plausible but fabricated data, captures attack telemetry, and generates hardening rules -- all transparently to the attacker.
+This document provides a concrete, opinionated architecture for building an "AI Honeypot" MVP on Azure with ~$100 in credits. The system detects prompt injection/jailbreak attacks at the API gateway level, silently reroutes malicious requests to a shadow LLM that returns plausible but fabricated data, captures attack telemetry, and generates hardening rules -- all transparently to the attacker. There are a lot of issues in this project.
 
 ---
 
